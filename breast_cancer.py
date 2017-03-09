@@ -12,10 +12,12 @@ INPUT_DATA = np.delete(DATASET, [0, 10], axis=1)
 OUTPUT_DATA = DATASET[:, -1]
 
 # Global network properties
-LAYERS = [9, 9, 1]
-ALL_WEIGHTS = np.vstack((np.ones((1, 9))))
-ALL_WEIGHTS = np.vstack((ALL_WEIGHTS, np.random.rand(9, 9)))
-ALL_WEIGHTS = np.vstack((ALL_WEIGHTS, np.random.rand(9, 9)))
+LAYERS = [1, 9, 1]
+ALL_WEIGHTS = np.array([
+    np.identity(9),
+    np.random.rand(9, 9),
+    np.random.rand(9, 9)
+])
 
 
 def sigmoid_activation(val):
@@ -47,13 +49,12 @@ def forwardpass():
         new_input = []
 
         for activation_input in [np.sum(neuron_input) for neuron_input in layer_weights]:
-            tatuu = sigmoid_activation(activation_input)
-            new_input.append(sigmoid_activation(tatuu))
+            new_input.append(sigmoid_activation(activation_input))
 
         current_input = new_input
         current_layer += 1
 
-    print current_input
+    print(current_input)
 
 
 forwardpass()
