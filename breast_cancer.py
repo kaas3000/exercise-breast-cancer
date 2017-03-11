@@ -12,12 +12,15 @@ INPUT_DATA = np.delete(DATASET, [0, 10], axis=1)
 OUTPUT_DATA = DATASET[:, -1]
 
 # Global network properties
-LAYERS = [1, 9, 1]
-ALL_WEIGHTS = np.array([
-    np.identity(9),
-    np.random.rand(9, 9),
-    np.random.rand(9, 9)
-])
+LAYERS = [9, 9, 1]
+BIAS = 1
+# ALL_WEIGHTS = np.array([
+#     np.random.rand(10, 9) / 10,
+#     np.random.rand(10, 9) / 10
+# ])
+ALL_WEIGHTS = np.array(
+    [np.random.rand(weights_count, LAYERS[index] + BIAS) for index, weights_count in enumerate(LAYERS[1:])])
+ALL_WEIGHTS[-1] = ALL_WEIGHTS[-1][:, :-BIAS]
 
 
 def sigmoid_activation(val):
@@ -30,18 +33,24 @@ def sigmoid_activation(val):
     return 1 / (1 + np.exp(-val))
 
 
-def forwardpass():
+def forwardpass(input_data: list):
     """
-    Forward pass
+    The forward pass calculates the output of the neural network based on the given input values
+    :type input_data: list
     """
 
     # Setup
     current_layer = 0
-    current_input = INPUT_DATA[0]
+    current_input = input_data
 
-    # Forward pass: loop through network
-    for layer_size in LAYERS:
+    # Start with hidden layers
+    hidden_layers = LAYERS[1:-1]
+    for layer_size in hidden_layers:
         layer_weights = ALL_WEIGHTS[current_layer]
+
+        # Add a bias node if necessary
+        if BIAS > 0:
+            current_input = np.concatenate((current_input, np.ones((BIAS,))), axis=0)
 
         # multiply weights by input
         layer_weights = np.tile(current_input, [layer_size, 1]) * layer_weights
@@ -54,7 +63,15 @@ def forwardpass():
         current_input = new_input
         current_layer += 1
 
-    print(current_input)
+    # End with output layer
+    neuron_count = LAYERS[-1]
+    layer_weights = np.tile(current_input, [neuron_count, 1]) * ALL_WEIGHTS[current_layer]
+    output = []
+
+    for activation_input in [np.sum(neuron_input) for neuron_input in layer_weights]:
+        output.append(sigmoid_activation(activation_input))
+
+    return output
 
 
-forwardpass()
+print(forwardpass(INPUT_DATA[0]))
