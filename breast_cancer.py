@@ -19,11 +19,12 @@ BIAS = 1
 #     np.random.rand(10, 9) / 10
 # ])
 ALL_WEIGHTS = np.array(
-    [np.random.rand(weights_count, LAYERS[index] + BIAS) for index, weights_count in enumerate(LAYERS[1:])])
+    [np.random.rand(weights_count, LAYERS[index] + BIAS)
+     for index, weights_count in enumerate(LAYERS[1:])])
 ALL_WEIGHTS[-1] = ALL_WEIGHTS[-1][:, :-BIAS]
 
 
-def sigmoid_activation(val):
+def sigmoid_activation(val: float):
     """
     Sigmoid activation function. This function is used
     to squash values between 0 and 1.
@@ -33,17 +34,43 @@ def sigmoid_activation(val):
     return 1 / (1 + np.exp(-val))
 
 
-def forwardpass(input_data: list):
+def sigmoid_derivative(val: float):
+    """
+    Return the slope of the sigmoid function at position val
+    :param val: position
+    :return: slope
+    """
+    sigmoid = sigmoid_activation(val)
+    return sigmoid * (1 - sigmoid)
+
+
+def cost_function(val: float, target: float) -> float:
+    """
+    Calculate the cost using the "sum of squares" function
+    :param val: calculated output
+    :param target: expected output
+    :return: cost
+    """
+    return (1 / 2) * (abs(target - val)) ** 2
+
+
+def forward_pass(input_data: list):
     """
     The forward pass calculates the output of the neural network based on the given input values
     :type input_data: list
     """
 
     # Setup
+    global NEURON_VALUES
+    NEURON_VALUES = []
+
     current_layer = 0
     current_input = input_data
 
-    # Start with hidden layers
+    # Start with the input layer
+    NEURON_VALUES.append(np.array(input_data).tolist())
+
+    # Continue with hidden layers
     hidden_layers = LAYERS[1:-1]
     for layer_size in hidden_layers:
         layer_weights = ALL_WEIGHTS[current_layer]
@@ -61,6 +88,7 @@ def forwardpass(input_data: list):
             new_input.append(sigmoid_activation(activation_input))
 
         current_input = new_input
+        NEURON_VALUES.append(new_input)
         current_layer += 1
 
     # End with output layer
@@ -71,7 +99,28 @@ def forwardpass(input_data: list):
     for activation_input in [np.sum(neuron_input) for neuron_input in layer_weights]:
         output.append(sigmoid_activation(activation_input))
 
+    NEURON_VALUES.append(output)
+
     return output
 
 
-print(forwardpass(INPUT_DATA[0]))
+def backward_pass():
+    input_data = INPUT_DATA[0]
+    expected_output = OUTPUT_DATA[0]
+    actual_output = forward_pass(input_data)[0]
+
+    error_signal = cost_function(actual_output, expected_output)
+    if not isinstance(error_signal, list):
+        error_signal = [error_signal]
+
+    all_weights_index = ALL_WEIGHTS.size
+    gradients = [sigmoid_derivative(error) for error in error_signal]
+    for neuron_layer_output in NEURON_VALUES[:-1:-1]:
+        all_weights_index -= 1
+
+        gradients = np.multiply(np.array([sigmoid_derivative(output) for output in neuron_layer_output]),
+                                (ALL_WEIGHTS[all_weights_index].transpose().dot(gradients)))
+
+
+print(forward_pass(INPUT_DATA[0]))
+backward_pass()
