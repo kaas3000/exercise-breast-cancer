@@ -4,10 +4,15 @@ Train a neural network on breast cancer data
 
 import numpy as np
 from numpy import genfromtxt
+from decimal import Decimal
 
 DATASET_LOCATION = 'res/breast-cancer-wisconsin.data'
 
 DATASET = genfromtxt(DATASET_LOCATION, delimiter=',')
+
+# Remove rows containing nan values
+DATASET = DATASET[~np.isnan(DATASET).any(axis=1)]
+
 INPUT_DATA = np.delete(DATASET, [0, 10], axis=1)
 OUTPUT_DATA = DATASET[:, -1]
 
@@ -33,17 +38,18 @@ BIAS_WEIGHTS = np.array(
 # ALL_WEIGHTS[-1] = ALL_WEIGHTS[-1][:, :-BIAS]
 
 
-def sigmoid_activation(val: float):
+def sigmoid_activation(val: Decimal):
     """
     Sigmoid activation function. This function is used
     to squash values between 0 and 1.
     :param val: the variable used in the sigmoid
     :return: a value between 0 and 1
     """
-    return 1 / (1 + np.exp(-val))
+    result = 1 / (1 + np.exp(-val))
+    return result
 
 
-def sigmoid_derivative(val: float):
+def sigmoid_derivative(val: Decimal):
     """
     Return the slope of the sigmoid function at position val
     :param val: position
@@ -78,10 +84,6 @@ def forward_pass(input_data: list):
     current_input = input_data
 
     # Start with the input layer
-    # Add a bias node if necessary
-    # if BIAS > 0:
-    #     current_input = np.concatenate((current_input, np.ones((BIAS,))), axis=0)
-    # NEURON_OUTPUT.append(np.array(current_input).tolist())
     NEURON_INPUT.append(current_input)
     NEURON_OUTPUT.append(current_input)
 
@@ -93,12 +95,13 @@ def forward_pass(input_data: list):
         layer_weights = NEURON_WEIGHTS[current_layer - 1]
 
         # multiply weights by input
-        layer_weights = np.multiply(
-            np.tile(np.matrix(current_input), [layer_size, 1]),
-            layer_weights)
+        # layer_weights = np.multiply(
+        #     np.tile(np.matrix(current_input), [layer_size, 1]),
+        #     layer_weights)
+        layer_weights = layer_weights.dot(current_input)
 
         new_input = []
-        neuron_inputs = [float(np.sum(weighted_input) + bias) for weighted_input, bias in
+        neuron_inputs = [weighted_input + bias for weighted_input, bias in
                          zip(layer_weights, BIAS_WEIGHTS[current_layer - 1])]
 
         for activation_input in neuron_inputs:
@@ -111,60 +114,93 @@ def forward_pass(input_data: list):
         current_layer += 1
 
     # End with output layer
-    # neuron_count = LAYERS[-1]
-    # layer_weights = np.tile(current_input, [neuron_count, 1]) * ALL_WEIGHTS[current_layer]
     output = current_input
-
-    # NEURON_OUTPUT.append(output)
 
     return output
 
 
 def backward_pass(input_data, output_data):
-    global NEURON_WEIGHTS
+    global NEURON_WEIGHTS, NEURON_INPUT, NEURON_OUTPUT
     input_data = input_data
     expected_output = output_data
     actual_output = forward_pass(input_data)[0]
+    errors = []
     gradients = []
 
-    # Start by calculating gradients using backpropagation
+    # Start by calculating errors using backpropagation
     error_signal = cost_function(actual_output, expected_output)
     if not isinstance(error_signal, list):
         error_signal = [error_signal]
 
-    gradients.append(np.dot(error_signal, [sigmoid_derivative(NEURON_INPUT[-1][0])]))
+    errors.append(np.multiply(error_signal, [sigmoid_derivative(NEURON_INPUT[-1][0])]))
 
     for index, weights in enumerate(NEURON_WEIGHTS[::-1]):
-        a = np.dot(weights.T, gradients[-1])
-        b = [sigmoid_derivative(neuron_input) for neuron_input in NEURON_INPUT[- index - 1]]
-        c = np.multiply(a, b)
+        # TODO merge lines
+        w = weights.T
+        b = np.dot(w, errors[-1])
+        a = [sigmoid_derivative(neuron_input) for neuron_input in NEURON_INPUT[- index - 1]]
 
-        gradients.append(c)
+        b = np.asarray(b)
+        a = np.array(a).reshape(-1, 1)
 
-    gradients.reverse()  # backpropagation works from the end to the beginning of the network
+        c = a * b
+
+        errors.append(c)
+
+    errors.reverse()  # backpropagation works from the end to the beginning of the network δ
+
+    for index, (layer_error, neuron_output) in enumerate(zip(errors[:-1], np.array(NEURON_OUTPUT)[1:])):
+        neuron_output = np.array(neuron_output).reshape(-1, 1)
+        gradients.append(
+            # np.split(
+                np.array(np.outer(layer_error, neuron_output))
+            #     NEURON_WEIGHTS[index].shape[0]
+            # )
+        )
 
     # Update weights according to gradients
-    NEURON_WEIGHTS = np.subtract(NEURON_WEIGHTS, np.array(gradients)[:-1] * LEARNING_RATE)
+    newgradients = tuple(gradients)
+    d = np.array(newgradients)
+    e = d * LEARNING_RATE
+
+    f = NEURON_WEIGHTS - e
+
+    # NEURON_WEIGHTS = np.subtract(NEURON_WEIGHTS, np.asarray(gradients)[:-1] * LEARNING_RATE)
+    NEURON_WEIGHTS = f
+
+    # Update biases according to the gradients
+    np.subtract(BIAS_WEIGHTS, np.array(errors)[1:] * LEARNING_RATE)
 
 
 def train(epochs):
-    training_rows = 500
+    data_size = INPUT_DATA.shape[0]
+    training_rows = int(data_size * .8)
+    test_rows = data_size - training_rows
     training_input = INPUT_DATA[:training_rows, ]
     training_output = OUTPUT_DATA[:training_rows, ]
 
     for current_epoch in range(epochs):
+        a = np.column_stack((training_input, training_output))
+        np.random.shuffle(a)
+
+        training_input = a[:, :-1]
+        training_output = a[:, -1]
+
         for input_data, output_data in zip(training_input, training_output):
             backward_pass(input_data, output_data)
 
-        test_input = INPUT_DATA[:-199, ]
-        test_output = OUTPUT_DATA[:-199, ]
+        test_input = INPUT_DATA[:-test_rows, ]
+        test_output = OUTPUT_DATA[:-test_rows, ]
         # new_error = [cost_function(forward_pass(x)[0], y)
         #               for x, y in zip(test_input, test_output)]
         new_errors = []
         for x, y in zip(test_input, test_output):
             calc_out = forward_pass(x)[0]
+            print(calc_out)
             new_errors.append(cost_function(calc_out, y))
 
-        print("%d - New error: %d" % (current_epoch, sum(new_errors)))
+            # print("%d - New error: %d" % (current_epoch, sum(new_errors)))
 
-train(200)
+
+if __name__ == '__main__':
+    train(2)
