@@ -183,8 +183,8 @@ def train(epochs, plot=False):
         for input_data, output_data in zip(current_training_input, current_training_output):
             backward_pass(input_data, output_data)
 
-        test_input = INPUT_DATA[:-test_rows, ]
-        test_output = OUTPUT_DATA[:-test_rows, ]
+        test_input = INPUT_DATA[-test_rows:, ]
+        test_output = OUTPUT_DATA[-test_rows:, ]
 
         new_errors = []
         for x, y in zip(test_input, test_output):
