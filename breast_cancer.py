@@ -3,6 +3,7 @@ Train a neural network on breast cancer data
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
 from numpy import genfromtxt
 from decimal import Decimal
 
@@ -13,19 +14,22 @@ DATASET = genfromtxt(DATASET_LOCATION, delimiter=',')
 # Remove rows containing nan values
 DATASET = DATASET[~np.isnan(DATASET).any(axis=1)]
 
+# Update output values to 0 and 1 (because the sigmoid function outputs between 0 and 1)
+DATASET[:, -1] = (DATASET[:, -1] / 2) - 1
+
 INPUT_DATA = np.delete(DATASET, [0, 10], axis=1)
-OUTPUT_DATA = DATASET[:, -1]
+OUTPUT_DATA = [[output] for output in DATASET[:, -1]]
+OUTPUT_DATA = np.asarray(OUTPUT_DATA)
+
+# The error values
+ERRORS = []
 
 # Global network properties
 LAYERS = [9, 9, 1]
 
-LEARNING_RATE = 0.5
+LEARNING_RATE = 0.005
 NEURON_INPUT = []
 NEURON_OUTPUT = []
-# ALL_WEIGHTS = np.array([
-#     np.random.rand(10, 9) / 10,
-#     np.random.rand(10, 9) / 10
-# ])
 NEURON_WEIGHTS = np.array(
     [np.random.rand(weights_count, LAYERS[index]) - 0.5
      for index, weights_count in enumerate(LAYERS[1:])])
@@ -33,9 +37,6 @@ BIAS_WEIGHTS = np.array(
     [np.random.rand(bias_count) - 0.5
      for bias_count in LAYERS[1:]]
 )
-
-
-# ALL_WEIGHTS[-1] = ALL_WEIGHTS[-1][:, :-BIAS]
 
 
 def sigmoid_activation(val: Decimal):
@@ -91,13 +92,10 @@ def forward_pass(input_data: list):
 
     # Continue with hidden layers
     hidden_layers = LAYERS[1:]
-    for layer_size in hidden_layers:
+    for _ in hidden_layers:
         layer_weights = NEURON_WEIGHTS[current_layer - 1]
 
         # multiply weights by input
-        # layer_weights = np.multiply(
-        #     np.tile(np.matrix(current_input), [layer_size, 1]),
-        #     layer_weights)
         layer_weights = layer_weights.dot(current_input)
 
         new_input = []
@@ -120,28 +118,27 @@ def forward_pass(input_data: list):
 
 
 def backward_pass(input_data, output_data):
-    global NEURON_WEIGHTS, NEURON_INPUT, NEURON_OUTPUT
+    global NEURON_WEIGHTS, NEURON_INPUT, NEURON_OUTPUT, ERRORS
     input_data = input_data
-    expected_output = output_data
-    actual_output = forward_pass(input_data)[0]
+    expected_output = np.asarray(output_data)
+    actual_output = np.asarray(forward_pass(input_data))
     errors = []
     gradients = []
 
     # Start by calculating errors using backpropagation
-    error_signal = cost_function(actual_output, expected_output)
-    if not isinstance(error_signal, list):
-        error_signal = [error_signal]
+    error_signal = actual_output - expected_output
+    output_layer_input_derivative = np.asarray([sigmoid_derivative(neuron_input) for neuron_input in NEURON_INPUT[-1]])
 
-    errors.append(np.multiply(error_signal, [sigmoid_derivative(NEURON_INPUT[-1][0])]))
+    errors.append(np.multiply(error_signal, output_layer_input_derivative))
 
     for index, weights in enumerate(NEURON_WEIGHTS[::-1]):
         # TODO merge lines
         w = weights.T
         b = np.dot(w, errors[-1])
-        a = [sigmoid_derivative(neuron_input) for neuron_input in NEURON_INPUT[- index - 1]]
+        a = [sigmoid_derivative(neuron_input) for neuron_input in NEURON_INPUT[- index - 2]]
 
-        b = np.asarray(b)
-        a = np.array(a).reshape(-1, 1)
+        b = np.array(b).reshape(-1, 1)  # convert to column vector (2d matrix)
+        a = np.array(a).reshape(-1, 1)  # convert to column vector (2d matrix)
 
         c = a * b
 
@@ -149,18 +146,12 @@ def backward_pass(input_data, output_data):
 
     errors.reverse()  # backpropagation works from the end to the beginning of the network δ
 
-    for index, (layer_error, neuron_output) in enumerate(zip(errors[:-1], np.array(NEURON_OUTPUT)[1:])):
+    for index, (layer_error, neuron_output) in enumerate(zip(errors[1:], np.array(NEURON_OUTPUT))):
         neuron_output = np.array(neuron_output).reshape(-1, 1)
-        gradients.append(
-            # np.split(
-                np.array(np.outer(layer_error, neuron_output))
-            #     NEURON_WEIGHTS[index].shape[0]
-            # )
-        )
+        gradients.append(np.array(np.outer(layer_error, neuron_output)))
 
     # Update weights according to gradients
-    newgradients = tuple(gradients)
-    d = np.array(newgradients)
+    d = np.array(gradients)
     e = d * LEARNING_RATE
 
     f = NEURON_WEIGHTS - e
@@ -172,35 +163,42 @@ def backward_pass(input_data, output_data):
     np.subtract(BIAS_WEIGHTS, np.array(errors)[1:] * LEARNING_RATE)
 
 
-def train(epochs):
+def train(epochs, plot=False):
     data_size = INPUT_DATA.shape[0]
     training_rows = int(data_size * .8)
     test_rows = data_size - training_rows
     training_input = INPUT_DATA[:training_rows, ]
     training_output = OUTPUT_DATA[:training_rows, ]
 
+    # One epoch goes once through the entire training set
     for current_epoch in range(epochs):
-        a = np.column_stack((training_input, training_output))
-        np.random.shuffle(a)
+        combined_training_data = np.column_stack((training_input, training_output))
+        np.random.shuffle(combined_training_data)
 
-        training_input = a[:, :-1]
-        training_output = a[:, -1]
+        training_columns_count = training_output.shape[1]
 
-        for input_data, output_data in zip(training_input, training_output):
+        current_training_input = combined_training_data[:, :-training_columns_count]
+        current_training_output = combined_training_data[:, -training_columns_count]
+
+        for input_data, output_data in zip(current_training_input, current_training_output):
             backward_pass(input_data, output_data)
 
         test_input = INPUT_DATA[:-test_rows, ]
         test_output = OUTPUT_DATA[:-test_rows, ]
-        # new_error = [cost_function(forward_pass(x)[0], y)
-        #               for x, y in zip(test_input, test_output)]
+
         new_errors = []
         for x, y in zip(test_input, test_output):
-            calc_out = forward_pass(x)[0]
-            print(calc_out)
-            new_errors.append(cost_function(calc_out, y))
+            calc_out = forward_pass(x)
 
-            # print("%d - New error: %d" % (current_epoch, sum(new_errors)))
+            new_errors.append(sum(cost_function(calc_out, y)))
+
+        ERRORS.append(sum(new_errors) / float(len(new_errors)))
+        print("Epoch {:d}/{:d} - error: {:f}".format(current_epoch + 1, epochs, ERRORS[-1]))
+
+    if plot:
+        plt.plot(ERRORS)
+        plt.show()
 
 
 if __name__ == '__main__':
-    train(2)
+    train(100, True)
