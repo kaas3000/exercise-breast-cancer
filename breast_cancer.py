@@ -50,10 +50,10 @@ OUTPUT_DATA = np.asarray(OUTPUT_DATA)
 ERRORS = []
 
 # Global network properties
-LAYERS = [7, 1]
+LAYERS = [7, 7, 7, 1]
 print(LAYERS)
 
-LEARNING_RATE = 0.2
+LEARNING_RATE = 0.22
 NEURON_INPUT = []
 NEURON_OUTPUT = []
 NEURON_WEIGHTS = np.array(
@@ -84,6 +84,14 @@ def sigmoid_derivative(val: Decimal):
     """
     sigmoid = sigmoid_activation(val)
     return sigmoid * (1 - sigmoid)
+
+
+def tanh_activation(val: Decimal):
+    return np.tanh(val)
+
+
+def tanh_derivative(val: Decimal):
+    return 1 - (tanh_activation(val) ** 2)
 
 
 def cost_function(val: float, target: float) -> float:
@@ -129,7 +137,7 @@ def forward_pass(input_data: list):
                          zip(layer_weights, BIAS_WEIGHTS[current_layer - 1])]
 
         for activation_input in neuron_inputs:
-            new_input.append(sigmoid_activation(activation_input))
+            new_input.append(tanh_activation(activation_input))
 
         NEURON_INPUT.append(neuron_inputs)
 
@@ -153,7 +161,7 @@ def backward_pass(input_data, output_data):
 
     # Start by calculating errors using backpropagation
     error_signal = actual_output - expected_output
-    output_layer_input_derivative = np.asarray([sigmoid_derivative(neuron_input) for neuron_input in NEURON_INPUT[-1]])
+    output_layer_input_derivative = np.asarray([tanh_derivative(neuron_input) for neuron_input in NEURON_INPUT[-1]])
 
     errors.append(np.multiply(error_signal, output_layer_input_derivative))
 
@@ -161,7 +169,7 @@ def backward_pass(input_data, output_data):
         # TODO merge lines
         w = weights.T
         b = np.dot(w, errors[-1])
-        a = [sigmoid_derivative(neuron_input) for neuron_input in NEURON_INPUT[- index - 2]]
+        a = [tanh_derivative(neuron_input) for neuron_input in NEURON_INPUT[- index - 2]]
 
         b = np.array(b).reshape(-1, 1)  # convert to column vector (2d matrix)
         a = np.array(a).reshape(-1, 1)  # convert to column vector (2d matrix)
@@ -220,6 +228,9 @@ def train(epochs, plot=False):
 
         ERRORS.append(sum(new_errors) / float(len(new_errors)))
         print("Epoch {:d}/{:d} - error: {:f}".format(current_epoch + 1, epochs, ERRORS[-1]))
+
+        global LEARNING_RATE
+        LEARNING_RATE -= 0.002
 
     if plot:
         plt.plot(ERRORS)
@@ -283,4 +294,3 @@ if __name__ == '__main__':
                 prediction
             ])
             print(kenteken, prediction)
-
