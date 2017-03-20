@@ -1,23 +1,48 @@
 """
 Train a neural network on breast cancer data
 """
+import csv
+from datetime import datetime
 
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy import genfromtxt
 from decimal import Decimal
 
-DATASET_LOCATION = 'res/breast-cancer-wisconsin.data'
 
-DATASET = genfromtxt(DATASET_LOCATION, delimiter=',')
+def scale(x):
+    """
+    Scale the input values between 0 and 1.
+    From: http://stackoverflow.com/a/1735122
+    """
+    x /= np.max(np.abs(x), axis=0)
+    return x
+
+
+DATASET_LOCATION = 'res/motorcycle-bpm.csv'
+
+parse_date = lambda x: datetime.strptime(x.decode("utf-8"), '%d/%m/%Y').timestamp()
+# col_headers = ["Kenteken", "Merk", "Datum eerste toelating", "Datum tenaamstelling", "Catalogusprijs",
+#                "Massa ledig voertuig", "Wielbasis",
+#                "Aantal cilinders", "Cilinderinhoud", "WAM verzekerd", "Bruto BPM"]
+DATASET = genfromtxt(DATASET_LOCATION, delimiter=',', skip_header=1, usecols=(2, 3, 4, 5, 6, 7, 8, 10), converters={
+    2: parse_date,
+    3: parse_date
+})
+# DATASET = np.delete(DATASET, [0, 1], axis=1)
 
 # Remove rows containing nan values
 DATASET = DATASET[~np.isnan(DATASET).any(axis=1)]
 
 # Update output values to 0 and 1 (because the sigmoid function outputs between 0 and 1)
-DATASET[:, -1] = (DATASET[:, -1] / 2) - 1
+# Note the max value of bruto BPMN in the training set is 6200
+DATASET[:, -1] = (DATASET[:, -1] / 10000)
 
-INPUT_DATA = np.delete(DATASET, [0, 10], axis=1)
+# Scale input values between 0 and 1
+DATASET[:, :7] = scale(DATASET[:, :7])
+test = DATASET[:, :7]
+
+INPUT_DATA = DATASET[:, :7]
 OUTPUT_DATA = [[output] for output in DATASET[:, -1]]
 OUTPUT_DATA = np.asarray(OUTPUT_DATA)
 
@@ -25,9 +50,10 @@ OUTPUT_DATA = np.asarray(OUTPUT_DATA)
 ERRORS = []
 
 # Global network properties
-LAYERS = [9, 9, 1]
+LAYERS = [7, 1]
+print(LAYERS)
 
-LEARNING_RATE = 0.005
+LEARNING_RATE = 0.2
 NEURON_INPUT = []
 NEURON_OUTPUT = []
 NEURON_WEIGHTS = np.array(
@@ -190,7 +216,7 @@ def train(epochs, plot=False):
         for x, y in zip(test_input, test_output):
             calc_out = forward_pass(x)
 
-            new_errors.append(sum(cost_function(calc_out, y)))
+            new_errors.append(np.sqrt(sum(cost_function(calc_out, y))))
 
         ERRORS.append(sum(new_errors) / float(len(new_errors)))
         print("Epoch {:d}/{:d} - error: {:f}".format(current_epoch + 1, epochs, ERRORS[-1]))
@@ -202,3 +228,59 @@ def train(epochs, plot=False):
 
 if __name__ == '__main__':
     train(100, True)
+
+    test_data_location = 'res/test.csv'
+
+    parse_date = lambda x: datetime.strptime(x.decode("utf-8"), '%d/%m/%Y').timestamp()
+    col_headers = ["Kenteken", "Merk", "Datum eerste toelating", "Datum tenaamstelling", "Catalogusprijs",
+                   "Massa ledig voertuig", "Wielbasis",
+                   "Aantal cilinders", "Cilinderinhoud", "WAM verzekerd", "Bruto BPM"]
+    test_dataset = genfromtxt(test_data_location, delimiter=',', skip_header=1, usecols=(2, 3, 4, 5, 6, 7, 8),
+                              converters={
+                                  2: lambda x: datetime.strptime(x.decode("utf-8"), '%d/%m/%Y').timestamp(),
+                                  3: lambda x: datetime.strptime(x.decode("utf-8"), '%d/%m/%Y').timestamp()
+                              })
+
+    autogegevens = genfromtxt(test_data_location, delimiter=',', skip_header=1, usecols=(0, 1), dtype=object)
+
+    # Obtain mean of columns as you need, nanmean is just convenient.
+    col_mean = np.nanmean(test_dataset, axis=0)
+
+    # Find indicies that you need to replace
+    inds = np.where(np.isnan(test_dataset))
+
+    # Place column means in the indices. Align the arrays using take
+    test_dataset[inds] = np.take(col_mean, inds[1])
+
+    print(test_dataset.shape)
+
+    should_keep_row = ~np.isnan(test_dataset).any(axis=1)
+    test_dataset = test_dataset[should_keep_row]
+    autogegevens = autogegevens[should_keep_row]
+
+    print(test_dataset.shape)
+
+    # Update output values to 0 and 1 (because the sigmoid function outputs between 0 and 1)
+    # Note the max value of bruto BPMN in the training set is 6200
+    # test_dataset[:, -1] = (test_dataset[:, -1] / 10000)
+
+    # Scale input values between 0 and 1
+    test_dataset = scale(test_dataset)
+
+    input_data = test_dataset[:, :7]
+
+    with open("results.csv", "w") as csv_file:
+        writer = csv.writer(csv_file, delimiter=',')
+        writer.writerow(['Kenteken', 'Prediction'])
+
+        for index, row in enumerate(input_data):
+            network_result = forward_pass(row)
+            prediction = (network_result[0] * 10000)
+            prediction = str(prediction)
+            kenteken = autogegevens[index][0].decode("utf-8")
+            writer.writerow([
+                kenteken,
+                prediction
+            ])
+            print(kenteken, prediction)
+
