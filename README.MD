@@ -35,7 +35,7 @@ and numpy array operations.
 ## Thanks
 This script is the result of an attempt to learn how neural networks work
 and can be trained.
-The sources used to obtain this information where:
+The sources used to obtain this information are:
 * The CS224d course, specifically lecture 6.
 ([lecture](https://youtu.be/MeIrQCZvlkE?list=PLlJy-eBtNFt4CSVWYqscHDdP58M3zFHIG) ,
 [notes](http://cs224d.stanford.edu/lecture_notes/notes3.pdf))
