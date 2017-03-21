@@ -39,7 +39,7 @@ BIAS_WEIGHTS = np.array(
 )
 
 
-def sigmoid_activation(val: Decimal):
+def sigmoid_activation(val: Decimal) -> Decimal:
     """
     Sigmoid activation function. This function is used
     to squash values between 0 and 1.
@@ -50,7 +50,7 @@ def sigmoid_activation(val: Decimal):
     return result
 
 
-def sigmoid_derivative(val: Decimal):
+def sigmoid_derivative(val: Decimal) -> Decimal:
     """
     Return the slope of the sigmoid function at position val
     :param val: position
@@ -70,10 +70,11 @@ def cost_function(val: float, target: float) -> float:
     return (1 / 2) * (abs(target - val)) ** 2
 
 
-def forward_pass(input_data: list):
+def forward_pass(input_data: list) -> np.ndarray:
     """
     The forward pass calculates the output of the neural network based on the given input values
     :type input_data: list
+    :return: Output of the neural network
     """
 
     # Setup
@@ -117,7 +118,16 @@ def forward_pass(input_data: list):
     return output
 
 
-def backward_pass(input_data, output_data):
+def backward_pass(input_data: np.ndarray, output_data: np.ndarray) -> None:
+    """
+    Do the backward pass of the backpropagation algorithm.
+    Calculate the total error and calculate the error gradients (= current derivative) for every output.
+    After that, propagate the error gradient back over the entire network. Use the error gradients to update
+    the weights by the learning rate.
+    :param input_data: training input data for the forward pass
+    :param output_data: expected output for the provided input data
+    :return: None
+    """
     global NEURON_WEIGHTS, NEURON_INPUT, NEURON_OUTPUT, ERRORS
     input_data = input_data
     expected_output = np.asarray(output_data)
@@ -163,7 +173,13 @@ def backward_pass(input_data, output_data):
     np.subtract(BIAS_WEIGHTS, np.array(errors)[1:] * LEARNING_RATE)
 
 
-def train(epochs, plot=False):
+def train(epochs: int, plot: bool = False) -> None:
+    """
+    Train the neural network
+    :param epochs: The number of times to loop through the training dataset
+    :param plot: Show a graph of the error progression during training after training is done
+    :return: None
+    """
     data_size = INPUT_DATA.shape[0]
     training_rows = int(data_size * .8)
     test_rows = data_size - training_rows
