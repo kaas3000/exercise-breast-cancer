@@ -3,6 +3,7 @@ Train a neural network on breast cancer data
 """
 
 import numpy as np
+import time
 from numpy import genfromtxt
 import tensorflow as tf
 
@@ -22,55 +23,59 @@ if __name__ == '__main__':
     x = tf.placeholder(tf.float32, shape=[None, 9])
     y_ = tf.placeholder(tf.float32, shape=[None, 1])
 
-    with tf.variable_scope("dude-where-is-my-car"):
-        weights = dict()
-        weights['w1'] = tf.Variable(tf.random_normal([9, 9]))
-        weights['w2'] = tf.Variable(tf.random_normal([9, 1]))
+    weights = dict()
+    weights['w1'] = tf.get_variable("weights_w1", (9, 9),
+                                    initializer=tf.random_normal_initializer())
+    weights['w2'] = tf.get_variable("weights_w2", (9, 1),
+                                    initializer=tf.random_normal_initializer())
 
-        biases = dict()
-        biases['b1'] = tf.Variable(tf.random_normal([9, ]))
-        biases['b2'] = tf.Variable(tf.random_normal([1, ]))
+    biases = dict()
+    biases['b1'] = tf.get_variable("bias_b1", (9,), initializer=tf.random_normal_initializer())
+    biases['b2'] = tf.get_variable("bias_b2", (1,), initializer=tf.random_normal_initializer())
 
-        x_size = 9
-        # model
-        input_layer = tf.placeholder(tf.float32, [None, x_size])
-        hidden_layer = tf.nn.softmax(tf.add(
-            tf.matmul(x, weights['w1']),
-            biases['b1']
-        ))
-        output_layer = tf.nn.softmax(tf.add(
-            tf.matmul(hidden_layer, weights['w2']),
-            biases['b2']
-        ))
+    x_size = 9
+    # model
+    input_layer = tf.placeholder(tf.float32, [None, x_size])
+    hidden_layer = tf.nn.tanh(tf.matmul(x, weights['w1']) + biases['b1'])
+    output_layer = tf.nn.softmax(tf.matmul(hidden_layer, weights['w2']) + biases['b2'])
 
-        ss_cost = tf.reduce_sum(tf.square(tf.subtract(output_layer, y_)))
+    ss_cost = tf.reduce_sum(tf.square(tf.subtract(output_layer, y_)))
 
-        train_step = tf.train.GradientDescentOptimizer(0.2).minimize(ss_cost)
+    train_step = tf.train.GradientDescentOptimizer(0.05).minimize(ss_cost)
 
-    init = tf.global_variables_initializer()
-    sess = tf.Session()
-    sess.run(init)
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
 
-    tf.summary.scalar('ss_cost', ss_cost)
-    arie = tf.summary.merge_all()
+        run = "run_" + str(int(time.time()))
+        file_writer = tf.summary.FileWriter(('log/' + run), sess.graph)
+        pleb = 0
 
-    file_writer = tf.summary.FileWriter('log', sess.graph)
-    pleb = 0
-    for index in range(100):
-        print("Epoch {:d}".format(index))
-        for (x_data, y_data) in zip(input_data, output_data):
-            _, summary = sess.run([train_step, arie], feed_dict={
-                x: x_data.reshape(1, -1),
-                y_: y_data.reshape(1, -1)
-            })
+        tf.summary.scalar('ss_cost', ss_cost)
 
-            file_writer.add_summary(summary, pleb)
+        print(sess.run(weights['w1']))
 
-            pleb += 1
+        n_epochs = 100
+        n_batches = 2
+        for index in range(n_epochs):
+            print("Epoch {:d}".format(index))
 
-    print(
-        sess.run(output_layer, feed_dict={
-            x: input_data[0].reshape(1, -1),
-        }))
+            weights_summary_op = tf.summary.tensor_summary("weights_w1", weights["w1"])
 
-    file_writer.close()
+            arie = tf.summary.merge_all()
+
+            input_data_num_samples = input_data.shape[0]
+            for (x_data, y_data) in zip(input_data, output_data):
+                _, summary, loss_val = sess.run([train_step, arie, ss_cost], feed_dict={
+                    x: x_data.reshape(1, -1),
+                    y_: y_data.reshape(1, -1)
+                })
+
+                file_writer.add_summary(summary, pleb)
+
+                pleb += 1
+
+        print(sess.run(weights['w1']))
+        print(
+            sess.run(output_layer, feed_dict={
+                x: input_data[0].reshape(1, -1),
+            }), output_data[0].reshape(1, -1))
